@@ -1,0 +1,6 @@
+name,category,district,city,type,autonomous,minority,hostel_available,established_year,website,phone,email,address
+Indian Institute of Technology Bombay,Engineering,Mumbai,Mumbai,Government,True,False,True,1958,https://www.iitb.ac.in,+91-22-2572-2545,info@iitb.ac.in,"Powai, Mumbai, Maharashtra 400076"
+College of Engineering Pune,Engineering,Pune,Pune,Government,True,False,True,1854,https://www.coep.org.in,+91-20-2507-2000,info@coep.ac.in,"Wellesley Road, Shivajinagar, Pune, Maharashtra 411005"
+Veermata Jijabai Technological Institute,Engineering,Mumbai,Mumbai,Government,True,False,True,1887,https://vjti.ac.in,+91-22-2419-2000,info@vjti.org.in,"H. R. Mahajani Road, Matunga, Mumbai, Maharashtra 400019"
+King Edward Memorial Hospital and Seth Gordhandas Sunderdas Medical College,Medical,Mumbai,Mumbai,Government,False,False,True,1926,https://www.kemhospitalmumbai.gov.in,+91-22-2413-0500,info@kemhospital.gov.in,"Acharya Donde Marg, Parel, Mumbai, Maharashtra 400012"
+B. J. Government Medical College,Medical,Pune,Pune,Government,False,False,True,1878,https://www.bjmc.edu.in,+91-20-2613-0500,info@bjmc.edu.in,"Jai Prakash Narayan Road, Near Railway Station, Pune, Maharashtra 411001"
