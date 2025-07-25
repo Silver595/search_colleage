@@ -1,12 +1,35 @@
-use crate::models::college::College;
+use crate::models::college::{College, CollegeWithContact};
 use sqlx::PgPool;
 
+// Fetch a single college with joined contact info by ID
+pub async fn fetch_college_with_contact_by_id(
+    pool: &PgPool,
+    id: i32,
+) -> Result<CollegeWithContact, sqlx::Error> {
+    sqlx::query_as::<_, CollegeWithContact>(
+        r#"
+        SELECT
+            c.id, c.name, c.category, c.district, c.city, c.type,
+            c.autonomous, c.minority, c.hostel_available, c.established_year,
+            ci.phone, ci.email, ci.website, ci.address, ci.pincode
+        FROM colleges c
+        LEFT JOIN contact_info ci ON c.id = ci.college_id
+        WHERE c.id = $1
+        "#,
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+}
+
+// Fetch all colleges ordered by name
 pub async fn fetch_all_colleges(pool: &PgPool) -> Result<Vec<College>, sqlx::Error> {
     sqlx::query_as::<_, College>("SELECT * FROM colleges ORDER BY name")
         .fetch_all(pool)
         .await
 }
 
+// Fetch college by id without contact info (optional/legacy use)
 pub async fn fetch_college_by_id(pool: &PgPool, id: i32) -> Result<College, sqlx::Error> {
     sqlx::query_as::<_, College>("SELECT * FROM colleges WHERE id = $1")
         .bind(id)
@@ -14,7 +37,7 @@ pub async fn fetch_college_by_id(pool: &PgPool, id: i32) -> Result<College, sqlx
         .await
 }
 
-// Filtering and search queries
+// Fetch colleges filtered by district
 pub async fn fetch_colleges_by_district(
     pool: &PgPool,
     district: &str,
@@ -25,6 +48,7 @@ pub async fn fetch_colleges_by_district(
         .await
 }
 
+// Fetch colleges filtered by category
 pub async fn fetch_colleges_by_category(
     pool: &PgPool,
     category: &str,
@@ -35,6 +59,7 @@ pub async fn fetch_colleges_by_category(
         .await
 }
 
+// Search colleges by name (case-insensitive, partial match)
 pub async fn search_colleges_by_name(
     pool: &PgPool,
     name: &str,
@@ -46,66 +71,7 @@ pub async fn search_colleges_by_name(
         .await
 }
 
-// Combined filtering queries
-pub async fn fetch_colleges_by_district_and_category(
-    pool: &PgPool,
-    district: &str,
-    category: &str,
-) -> Result<Vec<College>, sqlx::Error> {
-    sqlx::query_as::<_, College>(
-        "SELECT * FROM colleges WHERE district = $1 AND category = $2 ORDER BY name",
-    )
-    .bind(district)
-    .bind(category)
-    .fetch_all(pool)
-    .await
-}
-
-pub async fn fetch_colleges_by_type(
-    pool: &PgPool,
-    college_type: &str,
-) -> Result<Vec<College>, sqlx::Error> {
-    sqlx::query_as::<_, College>("SELECT * FROM colleges WHERE type = $1 ORDER BY name")
-        .bind(college_type)
-        .fetch_all(pool)
-        .await
-}
-
-// Feature-based queries
-pub async fn fetch_autonomous_colleges(pool: &PgPool) -> Result<Vec<College>, sqlx::Error> {
-    sqlx::query_as::<_, College>("SELECT * FROM colleges WHERE autonomous = true ORDER BY name")
-        .fetch_all(pool)
-        .await
-}
-
-pub async fn fetch_colleges_with_hostel(pool: &PgPool) -> Result<Vec<College>, sqlx::Error> {
-    sqlx::query_as::<_, College>(
-        "SELECT * FROM colleges WHERE hostel_available = true ORDER BY name",
-    )
-    .fetch_all(pool)
-    .await
-}
-
-// Utility queries
-pub async fn fetch_all_districts(pool: &PgPool) -> Result<Vec<String>, sqlx::Error> {
-    sqlx::query_scalar::<_, String>("SELECT DISTINCT district FROM colleges ORDER BY district")
-        .fetch_all(pool)
-        .await
-}
-
-pub async fn fetch_all_categories(pool: &PgPool) -> Result<Vec<String>, sqlx::Error> {
-    sqlx::query_scalar::<_, String>("SELECT DISTINCT category FROM colleges ORDER BY category")
-        .fetch_all(pool)
-        .await
-}
-
-pub async fn fetch_all_college_types(pool: &PgPool) -> Result<Vec<String>, sqlx::Error> {
-    sqlx::query_scalar::<_, String>("SELECT DISTINCT type FROM colleges ORDER BY type")
-        .fetch_all(pool)
-        .await
-}
-
-// Advanced filtering with multiple parameters
+// Fetch colleges with dynamic filters using QueryBuilder
 pub async fn fetch_colleges_with_filters(
     pool: &PgPool,
     district: Option<&str>,
@@ -114,67 +80,64 @@ pub async fn fetch_colleges_with_filters(
     autonomous: Option<bool>,
     hostel_available: Option<bool>,
 ) -> Result<Vec<College>, sqlx::Error> {
-    let mut query = "SELECT * FROM colleges WHERE 1=1".to_string();
-    let mut params = Vec::new();
-    let mut param_count = 0;
+    use sqlx::QueryBuilder;
+
+    let mut query_builder = QueryBuilder::new("SELECT * FROM colleges WHERE 1=1");
 
     if let Some(d) = district {
-        param_count += 1;
-        query.push_str(&format!(" AND district = ${}", param_count));
-        params.push(d);
+        if !d.trim().is_empty() {
+            query_builder.push(" AND district = ");
+            query_builder.push_bind(d);
+        }
     }
 
     if let Some(c) = category {
-        param_count += 1;
-        query.push_str(&format!(" AND category = ${}", param_count));
-        params.push(c);
+        if !c.trim().is_empty() {
+            query_builder.push(" AND category = ");
+            query_builder.push_bind(c);
+        }
     }
 
     if let Some(t) = college_type {
-        param_count += 1;
-        query.push_str(&format!(" AND type = ${}", param_count));
-        params.push(t);
-    }
-
-    if let Some(a) = autonomous {
-        param_count += 1;
-        query.push_str(&format!(" AND autonomous = ${}", param_count));
-        // Note: For boolean parameters, you'd need to handle this differently
-        // This is a simplified version
-    }
-
-    if let Some(h) = hostel_available {
-        param_count += 1;
-        query.push_str(&format!(" AND hostel_available = ${}", param_count));
-        // Note: For boolean parameters, you'd need to handle this differently
-    }
-
-    query.push_str(" ORDER BY name");
-
-    // For the complex query with optional parameters, you might want to use a different approach
-    // This is a simplified version - for production, consider using a query builder
-    match (district, category, college_type) {
-        (Some(d), Some(c), Some(t)) => {
-            sqlx::query_as::<_, College>(
-                "SELECT * FROM colleges WHERE district = $1 AND category = $2 AND type = $3 ORDER BY name"
-            )
-            .bind(d)
-            .bind(c)
-            .bind(t)
-            .fetch_all(pool)
-            .await
+        if !t.trim().is_empty() {
+            query_builder.push(" AND type = ");
+            query_builder.push_bind(t);
         }
-        (Some(d), Some(c), None) => {
-            sqlx::query_as::<_, College>(
-                "SELECT * FROM colleges WHERE district = $1 AND category = $2 ORDER BY name"
-            )
-            .bind(d)
-            .bind(c)
-            .fetch_all(pool)
-            .await
-        }
-        (Some(d), None, None) => fetch_colleges_by_district(pool, d).await,
-        (None, Some(c), None) => fetch_colleges_by_category(pool, c).await,
-        _ => fetch_all_colleges(pool).await,
     }
+
+    if autonomous == Some(true) {
+        query_builder.push(" AND autonomous = ");
+        query_builder.push_bind(true);
+    }
+
+    if hostel_available == Some(true) {
+        query_builder.push(" AND hostel_available = ");
+        query_builder.push_bind(true);
+    }
+
+    query_builder.push(" ORDER BY name");
+
+    let query = query_builder.build_query_as::<College>();
+    query.fetch_all(pool).await
+}
+
+// Fetch distinct districts for filter dropdowns
+pub async fn fetch_all_districts(pool: &PgPool) -> Result<Vec<String>, sqlx::Error> {
+    sqlx::query_scalar::<_, String>("SELECT DISTINCT district FROM colleges ORDER BY district")
+        .fetch_all(pool)
+        .await
+}
+
+// Fetch distinct categories for filter dropdowns
+pub async fn fetch_all_categories(pool: &PgPool) -> Result<Vec<String>, sqlx::Error> {
+    sqlx::query_scalar::<_, String>("SELECT DISTINCT category FROM colleges ORDER BY category")
+        .fetch_all(pool)
+        .await
+}
+
+// Fetch distinct college types for filter dropdowns
+pub async fn fetch_all_college_types(pool: &PgPool) -> Result<Vec<String>, sqlx::Error> {
+    sqlx::query_scalar::<_, String>("SELECT DISTINCT type FROM colleges ORDER BY type")
+        .fetch_all(pool)
+        .await
 }
