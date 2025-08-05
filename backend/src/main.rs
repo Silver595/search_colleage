@@ -1,9 +1,11 @@
 use axum::{routing::get, Extension, Router};
 use dotenv::dotenv;
+use handlers::admin;
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber;
+// use Jrs::admin;
 
 mod db;
 mod errors;
@@ -57,6 +59,8 @@ async fn main() -> anyhow::Result<()> {
             "/api/admission-requirements/:category",
             get(get_admission_requirements),
         )
+        // Merge admin routes - THIS IS THE KEY ADDITION
+        .merge(admin::admin_routes())
         .layer(CorsLayer::permissive())
         .layer(Extension(pool));
 

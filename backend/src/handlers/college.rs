@@ -8,7 +8,6 @@ use axum::{
 };
 use sqlx::PgPool;
 
-/// List colleges with optional filters and search.
 pub async fn list_colleges(
     Query(filters): Query<CollegeFilters>,
     Extension(pool): Extension<PgPool>,

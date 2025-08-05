@@ -7,6 +7,6 @@ pub mod filters;
 
 pub use admission_requirement::AdmissionRequirement;
 pub use college::College;
-pub use college::CollegeWithContact; // Added this line
+// pub use college::CollegeWithContact; // Comment out or remove this line
 pub use cutoff::Cutoff;
 pub use filters::CollegeFilters;
