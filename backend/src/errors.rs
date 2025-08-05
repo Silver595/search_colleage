@@ -15,14 +15,18 @@ pub enum ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let (status, error_message) = match self {
+        let (status, error_message) = match &self {
+            // Use &self to borrow
             ApiError::DatabaseError(err) => {
                 eprintln!("Database error: {}", err);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Database error occurred")
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Database error occurred".to_string(),
+                )
             }
-            ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.as_str()),
-            ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.as_str()),
-            ApiError::InternalServerError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.as_str()),
+            ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
+            ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            ApiError::InternalServerError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
         };
 
         let body = Json(json!({

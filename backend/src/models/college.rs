@@ -1,33 +1,33 @@
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 
-#[derive(Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct College {
     pub id: i32,
     pub name: String,
     pub category: String,
     pub district: String,
     pub city: String,
+    #[serde(rename = "type")]
     pub r#type: String,
-    pub autonomous: bool,
-    pub minority: bool,
-    pub hostel_available: bool,
+    pub autonomous: Option<bool>, // Changed from bool to Option<bool>
+    pub minority: Option<bool>,   // Changed from bool to Option<bool>
+    pub hostel_available: Option<bool>, // Changed from bool to Option<bool>
     pub established_year: Option<i32>,
 }
 
-#[derive(Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct CollegeWithContact {
     pub id: i32,
     pub name: String,
     pub category: String,
     pub district: String,
     pub city: String,
+    #[serde(rename = "type")]
     pub r#type: String,
-    pub autonomous: bool,
-    pub minority: bool,
-    pub hostel_available: bool,
+    pub autonomous: Option<bool>, // Changed from bool to Option<bool>
+    pub minority: Option<bool>,   // Changed from bool to Option<bool>
+    pub hostel_available: Option<bool>, // Changed from bool to Option<bool>
     pub established_year: Option<i32>,
-    // Contact info fields
     pub phone: Option<String>,
     pub email: Option<String>,
     pub website: Option<String>,

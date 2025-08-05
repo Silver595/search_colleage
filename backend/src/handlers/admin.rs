@@ -1,6 +1,6 @@
 use crate::errors::ApiError;
 use axum::{
-    extract::{Extension, Multipart},
+    extract::Extension, // Remove Multipart import
     response::Json,
     routing::{get, post},
     Router,
@@ -48,17 +48,12 @@ pub async fn upload_colleges_json(
     println!("📊 Processing {} colleges", data.colleges.len());
 
     let mut inserted = 0;
-    let mut updated = 0;
     let mut errors = Vec::new();
 
     for (index, college) in data.colleges.into_iter().enumerate() {
-        match insert_or_update_college(&pool, college).await {
-            Ok(was_update) => {
-                if was_update {
-                    updated += 1;
-                } else {
-                    inserted += 1;
-                }
+        match insert_college(&pool, college).await {
+            Ok(_) => {
+                inserted += 1;
                 println!("✅ Processed college #{}", index + 1);
             }
             Err(e) => {
@@ -72,107 +67,43 @@ pub async fn upload_colleges_json(
     Ok(Json(UploadResponse {
         message: "Upload completed".to_string(),
         inserted,
-        updated,
+        updated: 0,
         errors,
     }))
 }
 
-// CSV Upload Handler
+// Simplified CSV Upload Handler
 pub async fn upload_colleges_csv(
-    mut multipart: Multipart,
-    Extension(pool): Extension<PgPool>,
+    Extension(_pool): Extension<PgPool>,
 ) -> Result<Json<UploadResponse>, ApiError> {
-    let mut inserted = 0;
-    let mut updated = 0;
-    let mut errors = Vec::new();
-
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| ApiError::BadRequest(format!("Invalid file upload: {}", e)))?
-    {
-        if field.name() == Some("file") {
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| ApiError::BadRequest(format!("Failed to read file: {}", e)))?;
-
-            let content = String::from_utf8(data.to_vec())
-                .map_err(|e| ApiError::BadRequest(format!("Invalid UTF-8 content: {}", e)))?;
-
-            let mut reader = csv::Reader::from_reader(content.as_bytes());
-
-            for (line_num, result) in reader.deserialize().enumerate() {
-                match result {
-                    Ok(record) => {
-                        let college: CollegeImport = record;
-                        match insert_or_update_college(&pool, college).await {
-                            Ok(was_update) => {
-                                if was_update {
-                                    updated += 1;
-                                } else {
-                                    inserted += 1;
-                                }
-                            }
-                            Err(e) => {
-                                errors.push(format!("Line {}: {}", line_num + 2, e));
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        errors.push(format!("Line {}: CSV parsing error: {}", line_num + 2, e));
-                    }
-                }
-            }
-        }
-    }
-
     Ok(Json(UploadResponse {
-        message: "CSV upload completed".to_string(),
-        inserted,
-        updated,
-        errors,
+        message: "CSV upload not implemented yet".to_string(),
+        inserted: 0,
+        updated: 0,
+        errors: vec!["CSV upload feature coming soon".to_string()],
     }))
 }
 
-// Database Insert/Update Function
-async fn insert_or_update_college(
-    pool: &PgPool,
-    college: CollegeImport,
-) -> Result<bool, sqlx::Error> {
-    // Insert or update college
-    let college_result = sqlx::query!(
-        r#"
-        INSERT INTO colleges (name, category, district, city, type, autonomous, minority, hostel_available, established_year)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        ON CONFLICT (name, district, city)
-        DO UPDATE SET
-            category = EXCLUDED.category,
-            type = EXCLUDED.type,
-            autonomous = EXCLUDED.autonomous,
-            minority = EXCLUDED.minority,
-            hostel_available = EXCLUDED.hostel_available,
-            established_year = EXCLUDED.established_year,
-            updated_at = CURRENT_TIMESTAMP
-        RETURNING id, (xmax = 0) AS was_insert
-        "#,
+// Database Insert Function
+async fn insert_college(pool: &PgPool, college: CollegeImport) -> Result<i32, sqlx::Error> {
+    let result = sqlx::query!(
+        "INSERT INTO colleges (name, category, district, city, type, autonomous, minority, hostel_available, established_year) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id",
         college.name,
         college.category,
         college.district,
         college.city,
         college.r#type,
-        college.autonomous.unwrap_or(false),
-        college.minority.unwrap_or(false),
-        college.hostel_available.unwrap_or(false),
+        college.autonomous,
+        college.minority,
+        college.hostel_available,
         college.established_year
     )
     .fetch_one(pool)
     .await?;
 
-    let college_id = college_result.id;
-    let was_insert = college_result.was_insert.unwrap_or(true);
+    let college_id = result.id;
 
-    // Insert/update contact info if provided
+    // Insert contact info if provided
     if college.phone.is_some()
         || college.email.is_some()
         || college.website.is_some()
@@ -180,17 +111,7 @@ async fn insert_or_update_college(
         || college.pincode.is_some()
     {
         sqlx::query!(
-            r#"
-            INSERT INTO contact_info (college_id, phone, email, website, address, pincode)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (college_id)
-            DO UPDATE SET
-                phone = COALESCE(EXCLUDED.phone, contact_info.phone),
-                email = COALESCE(EXCLUDED.email, contact_info.email),
-                website = COALESCE(EXCLUDED.website, contact_info.website),
-                address = COALESCE(EXCLUDED.address, contact_info.address),
-                pincode = COALESCE(EXCLUDED.pincode, contact_info.pincode)
-            "#,
+            "INSERT INTO contact_info (college_id, phone, email, website, address, pincode) VALUES ($1, $2, $3, $4, $5, $6)",
             college_id,
             college.phone,
             college.email,
@@ -202,7 +123,7 @@ async fn insert_or_update_college(
         .await?;
     }
 
-    Ok(!was_insert) // Return true if it was an update
+    Ok(college_id)
 }
 
 // Stats Handler
@@ -217,9 +138,9 @@ pub async fn get_stats(
         .await?;
     stats.insert("total_colleges".to_string(), total.0);
 
-    // By district
+    // By district (top 5)
     let by_district: Vec<(String, i64)> = sqlx::query_as(
-        "SELECT district, COUNT(*) FROM colleges GROUP BY district ORDER BY COUNT(*) DESC LIMIT 10",
+        "SELECT district, COUNT(*) FROM colleges GROUP BY district ORDER BY COUNT(*) DESC LIMIT 5",
     )
     .fetch_all(&pool)
     .await?;
@@ -229,17 +150,6 @@ pub async fn get_stats(
             format!("district_{}", district.replace(" ", "_").replace("-", "_")),
             count,
         );
-    }
-
-    // By category
-    let by_category: Vec<(String, i64)> = sqlx::query_as(
-        "SELECT category, COUNT(*) FROM colleges GROUP BY category ORDER BY COUNT(*) DESC",
-    )
-    .fetch_all(&pool)
-    .await?;
-
-    for (category, count) in by_category {
-        stats.insert(format!("category_{}", category.replace(" ", "_")), count);
     }
 
     Ok(Json(stats))

@@ -31,15 +31,13 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     let app = Router::new()
-        // Health check routes
         .route(
             "/",
             get(|| async { "Maharashtra Colleges API is running!" }),
         )
         .route("/health", get(|| async { "OK" }))
-        // College routes with filtering
         .route("/api/colleges", get(list_colleges))
-        .route("/api/colleges/:id", get(get_college))
+        .route("/api/colleges/:id", get(get_college)) // Make sure this exists
         .route(
             "/api/colleges/district/:district",
             get(list_colleges_by_district),
@@ -48,18 +46,14 @@ async fn main() -> anyhow::Result<()> {
             "/api/colleges/category/:category",
             get(list_colleges_by_category),
         )
-        // Utility routes
         .route("/api/districts", get(list_districts))
         .route("/api/categories", get(list_categories))
         .route("/api/college-types", get(list_college_types))
-        // Cutoff routes
         .route("/api/cutoffs/:college_id", get(get_cutoffs_by_college))
-        // Admission requirements routes
         .route(
             "/api/admission-requirements/:category",
             get(get_admission_requirements),
         )
-        // Merge admin routes - THIS IS THE KEY ADDITION
         .merge(admin::admin_routes())
         .layer(CorsLayer::permissive())
         .layer(Extension(pool));
